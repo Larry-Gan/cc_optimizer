@@ -1,0 +1,72 @@
+I'm making a credit/debit card cashback optimizer webapp that can take in various inputs, and output a credit card setup.
+
+Here are the main features:
+1. Portfolio creator
+    a. User inputs:
+        1. Monthly spend per category
+        2. Cards users want in their portfolio
+    b. Webapp calculates the expected cashback per month
+    c. Users can save their inputted portfolio
+2. Credit card optimizer
+    a. User inputs:
+        1. Monthly spend per category
+        2. User selected cards
+            a. These can be cards you want to force to be part of the setup and cards you don't want in your portfolio
+            b. The card selection UI should allow filtering by values such as payment network, issuer, name searches, filtering based on  etc.
+            c. When filtering, users should be able to see a summary of the stats of the cards they're filtering for (so cashback rates, various perks, etc)
+        3. Maximum number of cards you aare willing to have in your portfolio
+    b. webapp outputs a list card combinations sorted by the total amount of cashback returned by the portfolio
+    c. Users can save returned portfolios
+3. Credit Card portfolio comparer
+    a. User inputs:
+        1. Monthly spend per category
+        2a. Saved portfolios
+        2b. User created portfolios
+        2c. Generated portfolios that are optimized
+    b. Webapp calculates the expected cashback per month for all inputted portfolios and ranks the portfolios
+4. Browse cards by things like sign up bonus, existence of annual fee/foreign transaction fee, perks (like tsa precheck)
+    a. User inputs:
+        i. User can select wht they want in a credit card
+    b. webapp outputs a list of cards sorted by how well it matches what the user is searching for
+The monthly spend per category defaults to whatever the average American spends per month
+
+User experience:
+1. We must find a way to efficiently and correctly calculate the best combinations. I have no idea what's the best algorithm here, but correctness and speed are of uptmost importance so make sure you have a top notch solution for this.
+    a. We should also take advantage of software features to not destroy performance while we calculate the best combinations
+2. A central feature of the webapp is the ability for users to add new cards locally. When the user inputs new cards, I want it to just work. 
+    a. Since I want users to be able to upload cards, everything should ideally be designed to be automatically calculated from just the information on the inputted cards. 
+        i. We do need to store a (should eventually be very large) list of pre-supported cards in a json though.
+    b. Long term I want to support bulk imports and exports, but lets keep that on the backburner for now and support only manual entry so we can build out other features. Do keep that in mind when designing and implementing though
+    c. Since we have a static site, I don'tthink anything can be persisted, but if there is a solution that does not require much work, we can try it.
+
+Here are some features I think should be in the card jsons:
+1. A list of cashback categories, their associated cashback weights and monthly spending limits, and notes on each category
+2. Issuer
+3. Network
+4. List of perks and their associated dollar value per year
+    a. This can be used to calculate a total perk dollar value, which people should be able to edit
+5. Sign On Bonus + spend requirement
+6. Annual fee
+8. Foreign transaction fee
+7. Exclusivity rules (for situation where if you have this card, you can't hold another card)
+9. Is debit/credit
+8. Misc notes on the card
+9. Optional point multiplier (for stuff like chase and bilt, who have cashback that doubles as points, users should be allowed to edit this value themselves since they may value points differently)
+
+There's also a lot of edge cases:
+1. We need to account for cases like the Citi Custom Cash which gives 5% on top category, and cards like the Bank of America Customized Cash Reward or UsBank Cash+ which let you choose multiple categories for max cashback.
+    a. We also need to deal with how monthly spend limits interact as well. I think we should just normalize all spend limits to a monthly spend limit since yearly and quarterly limits are a thing.
+2. Rotating category cards like the chase freedom flex and discover it need to be dealt with too. I'm thinking we can just amortize their cashback over the month to keep things simple, but when spend limits are included too, that gets kind of complicated.
+2. Some cards may also have expansive definitions of categories (Paypal debit card considers costco as grocery, Bank of America Customized Cash Reward has an expansive definition of online), or more restrictive definitions of categories (Amazon's credit card gives bonuses for Amazon and Whole foods, but not online shopping or groceries in general).
+3. Some categories count as subcategoried (Amazon is Online Shopping), some cards give more cashback for anything that's apple pay (like the USBank Kroger cards), and some merchants only accept certain issuers (Costco and costco gas only allows Visa cards)
+4. We should also be able to modify cashback amounts based on statuses like the Bank of America honors program.
+5. Some cards give bonuses on travel portals, but I'm not sure how to handle that exactly, like should travel portal be it's own thing or should it be a subset fotravel overall?
+6. Some cards like the robinhood gold card require robinhood gold to get. I believe this can be represented as the robinhood gold fee is the annual fee and in the notes on the card we say the card requires robinhood gold.
+7. If a user can't make the sign up bonus spend reqirement, we should warn the user somehow.
+
+As for other sutff:
+1. This webapp needs to be easily deployable to something like github pages and cloudflare pages since I don't want to pay any money for this.
+2. The UI should be simple and intuitive to use, ease of use is a very important factor for me since the credit card game is already a bit tedious to keep track of
+3. The libraries chosen should be chosen to maximize resume value for the job search, but don't chase presitige over being the right tool for the job. Also don't overcomplicate the design.
+4. Make sure we can easily upgrade the webapp and add new features.
+5. Make the components as re-usable as possible and the code easy to read.

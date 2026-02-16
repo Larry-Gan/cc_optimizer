@@ -1,0 +1,869 @@
+================================================================================
+CREDIT CARD CASHBACK OPTIMIZER — IMPLEMENTATION PLAN v2
+================================================================================
+A static webapp that helps users find the optimal credit/debit card portfolio
+to maximize cashback/rewards given their spending habits.
+
+Deployable to GitHub Pages / Cloudflare Pages (zero hosting cost).
+
+See plan.txt for the original brainstorm and constraints this plan is based on.
+
+================================================================================
+TABLE OF CONTENTS
+================================================================================
+1. TECHNOLOGY STACK
+2. DATA MODEL — CARD SCHEMA
+3. DATA MODEL — CATEGORY TAXONOMY
+4. DATA MODEL — USER DATA
+5. FEATURE: CARD DATABASE & BROWSING
+6. FEATURE: SPEND PROFILE INPUT
+7. FEATURE: PORTFOLIO CREATOR
+8. FEATURE: PORTFOLIO OPTIMIZER
+9. FEATURE: PORTFOLIO COMPARER
+10. OPTIMIZATION ALGORITHM DESIGN
+11. EDGE CASES & SPECIAL CARD MECHANICS
+12. PERSISTENCE & DATA MANAGEMENT
+13. UI/UX GUIDELINES
+14. PROJECT STRUCTURE
+15. OPEN QUESTIONS & FUTURE WORK
+
+================================================================================
+1. TECHNOLOGY STACK
+================================================================================
+Framework:       React 18+ with TypeScript (strong resume value, huge ecosystem)
+Build tool:      Vite (fast dev server, simple config, static output)
+Styling:         Tailwind CSS (utility-first, rapid iteration, very resume-relevant)
+Component lib:   shadcn/ui (high-quality, accessible, composable components built on Radix)
+State mgmt:      Zustand (lightweight, simple API, works well with persistence)
+Persistence:     localStorage (simple) + optional IndexedDB via idb-keyval for larger data
+Routing:         React Router v6 (if multi-page) or single-page with tab navigation
+Testing:         Vitest + React Testing Library
+Deployment:      Static build → GitHub Pages or Cloudflare Pages (vite build → dist/)
+
+Rationale: React + TypeScript + Tailwind + shadcn/ui is a modern, widely-adopted
+stack with strong resume value. Zustand is chosen over Redux for simplicity since
+we don't need Redux's complexity. Vite produces a static dist/ folder that
+deploys anywhere.
+
+================================================================================
+2. DATA MODEL — CARD SCHEMA
+================================================================================
+Each card is a JSON object. The schema must support:
+- Pure cashback cards (flat %)
+- Tiered/category cards (different % per category)
+- Rotating category cards (quarterly changing categories)
+- Points-based cards (with user-adjustable point valuation)
+- Cards with spend limits on bonus categories
+- Cards with chooseable bonus categories
+
+```jsonc
+{
+  "id": "string (unique, kebab-case, e.g. 'chase-freedom-flex')",
+  "name": "string",
+  "issuer": "string (e.g. 'Chase', 'Citi', 'Bank of America')",
+  "network": "string (enum: 'Visa', 'Mastercard', 'Amex', 'Discover')",
+  "cardType": "string (enum: 'credit', 'debit')",
+  "annualFee": "number (dollars, 0 if none)",
+  "foreignTransactionFeePercent": "number (e.g. 3 for 3%, 0 if none)",
+  "isActive": "boolean (default true, allows soft-deleting/disabling cards)",
+
+  // --- Cashback / Reward Categories ---
+  "baseCashbackPercent": "number (default rate on uncategorized spend, e.g. 1)",
+
+  "categoryBonuses": [
+    {
+      "categoryId": "string (references category taxonomy)",
+      "cashbackPercent": "number",
+      "spendLimit": {
+        "amount": "number | null (null = unlimited)",
+        "period": "string | null (enum: 'month', 'quarter', 'year'; null if unlimited)"
+      },
+      "isUserChoosable": "boolean (true for cards like BoA Customized Cash, US Bank Cash+)",
+      "maxChoosableSlots": "number | null (how many categories user can pick for this tier)",
+      "isRotating": "boolean (true for quarterly rotating like Chase Freedom Flex)",
+      "rotatingSchedule": "object | null (quarterly category assignments, if known)",
+      "notes": "string (e.g. 'Costco counts as grocery for this card')"
+    }
+  ],
+
+  // --- Points System ---
+  "pointsSystem": {
+    "programName": "string | null (e.g. 'Chase Ultimate Rewards', 'Bilt Points')",
+    "defaultPointValueCents": "number (default cpp valuation, e.g. 1.5 for 1.5cpp)",
+    "userPointValueCents": "number | null (user override, nullable)"
+  },
+
+  // --- Sign-On Bonus ---
+  "signOnBonus": {
+    "bonusAmount": "number (dollar value or point count)",
+    "bonusType": "string (enum: 'cash', 'points')",
+    "spendRequirement": "number (dollars to spend)",
+    "timeframeDays": "number (days to meet spend requirement)",
+    "notes": "string"
+  } | null,
+
+  // --- Perks ---
+  "perks": [
+    {
+      "name": "string (e.g. 'TSA PreCheck/Global Entry Credit')",
+      "estimatedAnnualValue": "number (dollars)",
+      "userAnnualValue": "number | null (user override)",
+      "notes": "string"
+    }
+  ],
+
+  // --- Restrictions ---
+  "exclusivityRules": [
+    {
+      "ruleType": "string (enum: 'cannot_hold_with', 'one_of_family')",
+      "cardIds": ["string (ids of conflicting cards)"],
+      "notes": "string"
+    }
+  ],
+
+  // --- Status/Condition Modifiers ---
+  "conditionalBonuses": [
+    {
+      "conditionName": "string (e.g. 'Bank of America Preferred Rewards Platinum')",
+      "conditionDescription": "string",
+      "baseCashbackBoost": "number (added to base %, e.g. 0.25)",
+      "categoryBonusMultiplier": "number (multiplier on category bonuses, e.g. 1.25 for 25% boost)",
+      "isActive": "boolean (user toggles this)"
+    }
+  ],
+
+  // --- Payment Method Bonuses ---
+  "paymentMethodBonuses": [
+    {
+      "method": "string (enum: 'apple_pay', 'google_pay', 'samsung_pay', 'contactless', 'travel_portal')",
+      "bonusCashbackPercent": "number (additional % on top of category rate)",
+      "applicableCategories": ["string (category ids, empty = all)"],
+      "spendLimit": {
+        "amount": "number | null (null = unlimited)",
+        "period": "string | null (enum: 'month', 'quarter', 'year'; null if unlimited)"
+      },
+      "notes": "string"
+    }
+  ],
+
+  // --- Merchant Overrides ---
+  // For cards that categorize merchants differently than the standard taxonomy
+  // e.g., PayPal debit counting Costco as grocery
+  "merchantCategoryOverrides": [
+    {
+      "merchantId": "string (e.g. 'costco', 'amazon', 'whole-foods')",
+      "overrideCategoryId": "string (what this card treats the merchant as)"
+    }
+  ],
+
+  "notes": "string (general notes about the card)",
+  "url": "string | null (link to card's page)",
+  "lastUpdated": "string (ISO date)"
+}
+```
+
+IMPORTANT IMPLEMENTATION NOTES:
+- Store spend limits in card JSON using the ORIGINAL value and period
+  (`amount` + `period`). Do not overwrite the source cadence in stored data.
+- For calculations, convert each limit to an effective monthly limit at runtime:
+    • month -> monthlyLimit = amount
+    • quarter -> monthlyLimit = amount / 3
+    • year -> monthlyLimit = amount / 12
+- In UI, always show both values when a limit exists:
+    • Original: "$1,500 per quarter"
+    • Monthly equivalent used in calculations: "$500/month"
+- Rotating category cards: store the quarterly schedule if known, but for
+  optimization purposes, amortize across months. A card giving 5% on groceries
+  for Q1 effectively gives ~1.25% on groceries averaged monthly over the year
+  (or 5% for 3 months, 0% bonus for 9 months). The optimizer should handle both
+  views: "this quarter" and "annualized."
+- The `baseCashbackPercent` field is critical — nearly every card has a fallback
+  rate (usually 1%). This is used for any spend not covered by a category bonus.
+
+================================================================================
+3. DATA MODEL — CATEGORY TAXONOMY
+================================================================================
+Categories form a TREE (hierarchy). This is essential for handling subcategories,
+merchant-specific bonuses, and cards with different category definitions.
+
+Top-level categories (L1) are broad. L2/L3 are increasingly specific.
+
+```
+groceries
+  ├── costco
+  ├── wholesale-clubs (Sam's, BJ's)
+  ├── whole-foods
+  └── supermarkets
+gas
+  ├── costco-gas
+  ├── ev-charging
+  └── gas-stations
+dining
+  ├── restaurants
+  ├── fast-food
+  ├── bars
+  ├── coffee-shops
+  └── food-delivery
+travel
+  ├── airlines
+  ├── hotels
+  ├── car-rental
+  ├── cruises
+  ├── public-transit
+  ├── rideshare (Uber, Lyft)
+  ├── parking
+  ├── tolls
+  └── travel-portal
+online-shopping
+  ├── amazon
+  ├── ebay
+  ├── walmart-online
+  └── general-online
+entertainment
+  ├── streaming (Netflix, Spotify)
+  ├── gaming
+  ├── movies-theater
+  └── live-events
+bills-utilities
+  ├── phone-bill
+  ├── internet
+  ├── electric
+  ├── water
+  ├── insurance
+  └── subscriptions
+drugstores-pharmacy
+home-improvement
+  ├── hardware-stores
+  └── furniture
+office-supplies
+gym-fitness
+pet
+childcare-education
+medical
+  ├── doctors
+  ├── dental
+  └── vision
+clothing
+electronics
+other (catch-all for uncategorized spend)
+```
+
+RULES FOR CATEGORY MATCHING:
+1. When a card says "5% on groceries," it applies to the `groceries` category
+   AND all its children (costco, whole-foods, etc.) UNLESS the card has an
+   explicit merchantCategoryOverride or the child has a more specific rule.
+2. When a user enters spend for "groceries," it represents TOTAL grocery spend
+   including subcategories. If they ALSO enter spend for "costco" separately,
+   that should be treated as a SUBSET of groceries (not additive).
+   → The UI must make this clear and prevent double-counting.
+3. Some merchants map to specific subcategories (Costco → costco under groceries,
+   but also sells gas → costco-gas under gas). The taxonomy handles this by
+   having merchant-specific leaf nodes under the appropriate parent.
+4. Merchant-restricted categories (e.g., "Amazon" or "Whole Foods" only) are
+   leaf nodes. A card that gives 5% on Amazon targets the `amazon` subcategory
+   specifically, not all of `online-shopping`.
+
+SPEND INPUT STRATEGY:
+- Users primarily enter spend at L1 (broad categories): groceries, gas, dining, etc.
+- Optionally, users can break down L1 into L2/L3 for more accurate optimization.
+- The optimizer must handle mixed granularity gracefully.
+- Default spend values should come from BLS Consumer Expenditure Survey data
+  (average American monthly spend per category).
+
+================================================================================
+4. DATA MODEL — USER DATA
+================================================================================
+```jsonc
+{
+  "spendProfile": {
+    "name": "string (e.g. 'My Spending', 'Household')",
+    "monthlySpend": {
+      "categoryId": "number (dollars/month)"
+      // e.g., "groceries": 600, "gas": 200, "dining": 300
+    }
+  },
+
+  "ownedCards": ["string (card ids)"],
+
+  "savedPortfolios": [
+    {
+      "id": "string",
+      "name": "string",
+      "cardIds": ["string"],
+      "categoryAssignments": {
+        "categoryId": "cardId (which card to use for this category)"
+      },
+      "createdAt": "string (ISO date)",
+      "source": "string (enum: 'manual', 'optimizer', 'imported')"
+    }
+  ],
+
+  "userCardOverrides": {
+    "cardId": {
+      "pointValueCents": "number | null",
+      "perkValues": { "perkName": "number" },
+      "conditionalBonuses": { "conditionName": "boolean" },
+      "choosableCategories": ["categoryId (user's chosen bonus categories)"]
+    }
+  },
+
+  "customCards": [
+    // Full card objects for user-added cards not in the default database
+  ],
+
+  "settings": {
+    "annualizeRotatingCategories": "boolean (default true)",
+    "includeSignOnBonusInFirstYear": "boolean (default false)",
+    "maxCardsInWallet": "number (default 5)",
+    "excludeDebitCards": "boolean (default false)",
+    "preferredNetwork": "string | null",
+    "showAdvancedOptions": "boolean (default false)"
+  }
+}
+```
+
+================================================================================
+5. FEATURE: CARD DATABASE & BROWSING
+================================================================================
+PURPOSE: Let users explore, filter, and learn about available cards.
+
+PAGE/TAB: "Browse Cards"
+
+FUNCTIONALITY:
+  - Display all cards (built-in + user-added) in a searchable, filterable list
+  - Each card shows a summary card/tile with:
+      • Card name, issuer, network badge
+      • Top category bonuses (e.g., "5% Groceries, 3% Gas, 1% Everything Else")
+      • Annual fee
+      • Foreign transaction fee (show a badge/icon if non-zero)
+      • Sign-on bonus summary
+      • Total estimated perk value
+  - Clicking a card opens a detail view with full information
+    including spend limits shown as:
+      • original limit from issuer terms (e.g., "$1,500/quarter")
+      • monthly equivalent used by optimizer (e.g., "$500/month")
+
+FILTERS (combine with AND logic, multiple selections within a filter use OR):
+  - Issuer (multi-select checkboxes)
+  - Network (multi-select checkboxes)
+  - Card type (credit / debit)
+  - Annual fee (none / under $100 / under $250 / any)
+  - Foreign transaction fee (none / any)
+  - Has sign-on bonus (yes / no)
+  - Category bonus (select a category → show cards that give bonus on it)
+  - Perks (multi-select: TSA PreCheck, lounge access, etc.)
+  - Minimum cashback % on a category
+
+AGGREGATE STATS PANEL (shown above results, updates live as filters change):
+  - Number of cards matching
+  - Best cashback rate per popular category across filtered cards
+  - Range of annual fees
+  - Average sign-on bonus value
+
+ACTIONS:
+  - "Add to Portfolio" button on each card (adds to current working portfolio)
+  - "Add Custom Card" button opens card entry form
+  - "Edit" button on user-added cards
+  - Sort by: name, annual fee, base cashback %, best category rate, sign-on bonus
+
+================================================================================
+6. FEATURE: SPEND PROFILE INPUT
+================================================================================
+PURPOSE: Capture the user's monthly spending pattern. This is a SHARED input
+used across Portfolio Creator, Optimizer, and Comparer.
+
+COMPONENT: SpendProfileEditor (reusable)
+
+FUNCTIONALITY:
+  - List of L1 categories with dollar input fields
+  - Each L1 category is expandable to show L2/L3 subcategories
+  - Default values pre-populated from average American spending data
+  - "Reset to Defaults" button
+  - Running total shown at bottom
+  - Users can save multiple spend profiles (e.g., "Normal Month", "Holiday Season")
+  - Visual bar chart or pie chart showing spend distribution (nice-to-have)
+
+UX NOTES:
+  - Use input fields with increment/decrement buttons (not sliders — too imprecise)
+  - When a user edits a subcategory, auto-adjust the parent total
+  - When a user edits a parent category without touching subcategories,
+    distribute proportionally among subcategories (or leave subcategory
+    breakdown undefined — treat it as all going to the parent)
+  - Show a warning if total monthly spend seems unusually high or low
+  - Currency formatting ($X,XXX)
+
+DOUBLE-COUNTING PREVENTION:
+  - If user enters $600 for "groceries" and $200 for "costco," clarify:
+    "Is $200 Costco part of the $600 groceries total, or in addition?"
+  - Recommended approach: subcategory spend is PART OF parent spend.
+    If groceries = $600 and costco = $200, then non-Costco groceries = $400.
+  - Show the breakdown clearly: "Groceries: $600 total ($200 Costco, $400 other)"
+
+================================================================================
+7. FEATURE: PORTFOLIO CREATOR
+================================================================================
+PURPOSE: Let users manually build a card portfolio and see its expected cashback.
+
+PAGE/TAB: "My Portfolio"
+
+FUNCTIONALITY:
+  - Select cards to include in portfolio (reuse card browser with "add" action)
+  - For each category in spend profile, show which card is best and the
+    effective cashback rate
+  - Allow manual override of card-to-category assignment
+  - Show per-category breakdown:
+      | Category    | Spend   | Card Used          | Rate  | Cashback |
+      |-------------|---------|--------------------|-------|----------|
+      | Groceries   | $600    | Amex Blue Cash Pref| 6%    | $36.00   |
+      | Gas         | $200    | Citi Custom Cash   | 5%    | $10.00   |
+      | ...         |         |                    |       |          |
+      | Other       | $1,500  | Citi Double Cash   | 2%    | $30.00   |
+      | **Total**   | $4,000  |                    |       | $120.00  |
+
+  - Show annual summary:
+      • Total annual cashback
+      • Minus total annual fees
+      • Plus total perk value (estimated)
+      • Plus sign-on bonus (year 1 only, toggleable)
+      • = Net annual value
+
+  - Account for spend limits:
+      If a 5% card has a $500/month limit on groceries and user spends $600:
+      → $500 × 5% = $25, remaining $100 falls to next best card or base rate
+      → Show this split clearly in the breakdown
+      → When displaying the card itself, show both:
+        "Original limit: $1,500/quarter; Calc limit: $500/month"
+
+  - "Save Portfolio" button with name input
+  - "Compare" button → sends to comparer with this portfolio pre-loaded
+
+WARNINGS:
+  - If portfolio contains cards that violate exclusivity rules, show a warning
+  - If sign-on bonus spend requirement exceeds monthly spend capacity, show warning
+  - If a card has an annual fee but contributes less than the fee in value, warn
+
+================================================================================
+8. FEATURE: PORTFOLIO OPTIMIZER
+================================================================================
+PURPOSE: Given a spend profile, find the best combination of cards to maximize
+net cashback/rewards value.
+
+PAGE/TAB: "Optimize"
+
+INPUTS:
+  - Spend profile (shared component)
+  - Card pool:
+      • "Include all cards" (default) or manual selection
+      • Force-include cards (must be in every result)
+      • Force-exclude cards (removed from consideration)
+  - Max cards in portfolio (slider/input, 1–10, default 5)
+  - Optimization target (dropdown):
+      • "Maximize monthly cashback" (default)
+      • "Maximize annual net value" (cashback − fees + perks)
+      • "Maximize first-year value" (includes sign-on bonus)
+
+OUTPUTS:
+  - Ranked list of top portfolio combinations (show top 10–20)
+  - Each result shows:
+      • Cards in the portfolio
+      • Monthly cashback estimate
+      • Annual net value
+      • Per-category card assignment
+      • Key trade-offs vs. the #1 result
+  - "View Details" expands to full breakdown (same as Portfolio Creator view)
+  - "Save" button on each result
+  - "Compare Selected" → sends checked results to Comparer
+
+COMPUTATION UX:
+  - Show a progress indicator during optimization
+  - Stream results as they're found (show best-so-far, keep improving)
+  - "Cancel" button if it's taking too long
+  - Show estimated computation time before starting
+  - After completion, show how many combinations were evaluated
+
+================================================================================
+9. FEATURE: PORTFOLIO COMPARER
+================================================================================
+PURPOSE: Side-by-side comparison of multiple portfolios against the same
+spend profile.
+
+PAGE/TAB: "Compare"
+
+INPUTS:
+  - Spend profile (shared component)
+  - 2–6 portfolios to compare (from saved, manual entry, or optimizer results)
+
+OUTPUTS:
+  - Side-by-side table:
+      | Metric              | Portfolio A | Portfolio B | Portfolio C |
+      |---------------------|-------------|-------------|-------------|
+      | Cards               | 3 cards     | 4 cards     | 5 cards     |
+      | Monthly Cashback    | $95         | $110        | $118        |
+      | Annual Fees         | $0          | $95         | $250        |
+      | Perk Value          | $0          | $100        | $300        |
+      | Net Annual Value    | $1,140      | $1,325      | $1,466      |
+      | Year 1 w/ SUB       | $1,140      | $2,025      | $2,966      |
+
+  - Per-category comparison:
+      | Category  | Spend | Port A (card, rate) | Port B (card, rate) |
+      |-----------|-------|---------------------|---------------------|
+      | Groceries | $600  | Citi DC (2%)        | Amex BCP (6%)       |
+
+  - Highlight the "winner" per row
+  - Rank portfolios by selected metric
+
+================================================================================
+10. OPTIMIZATION ALGORITHM DESIGN
+================================================================================
+This is the most technically complex part. The problem:
+  Given N cards, find the best subset of size ≤ K that maximizes total
+  cashback across all spending categories.
+
+PROBLEM CHARACTERISTICS:
+  - Combinatorial: C(N, K) combinations. For N=100, K=5 → ~75 million combos.
+  - Each combination requires computing optimal category-to-card assignment.
+  - Category assignment itself is non-trivial due to spend limits (greedy by
+    rate works when there are no limits; with limits it becomes more complex).
+
+PROPOSED APPROACH (multi-tier):
+
+Tier 1 — Pruning & Preprocessing:
+  - Remove cards that are strictly dominated (Card A is worse than Card B in
+    every category and has higher/equal fees). This can dramatically reduce N.
+  - Group cards by their "specialty" (best category). Cards that aren't the
+    best at anything and don't have valuable perks can be deprioritized.
+  - Pre-compute each card's value contribution for each category.
+
+Tier 2 — Category Assignment (inner loop):
+  For a given set of K cards, determine optimal category-to-card mapping:
+  - Without spend limits: trivially pick highest-rate card per category. O(C×K)
+  - With spend limits: use a greedy approach:
+      1. Sort (category, card) pairs by cashback rate descending
+      2. Assign spend to highest-rate card until its limit is hit
+      3. Overflow to next-best card
+      4. This is a variant of the fractional knapsack problem (greedy is optimal)
+    NOTE: This gets more complex with choosable categories (BoA Customized Cash)
+    where the optimal choice of categories depends on what other cards are in
+    the portfolio. Handle via: try all choosable permutations for such cards
+    (usually only 2-3 slots, so the combinatorial explosion is manageable).
+
+Tier 3 — Portfolio Search (outer loop):
+  Option A — Exhaustive Search (small N after pruning):
+    If N ≤ ~30 after pruning, enumerate all C(N,K) and score each. Parallelize
+    with Web Workers. For N=30, K=5 → 142,506 combos, very feasible.
+
+  Option B — Heuristic Search (large N):
+    If N is large:
+    1. Start with the globally best single card for each category
+    2. Greedy add: iteratively add the card that improves the portfolio most
+    3. Local search: try swapping each card in the portfolio with each card
+       outside it; accept swaps that improve score
+    4. Run multiple random restarts to avoid local optima
+    5. Can also use beam search: maintain top-M partial portfolios and expand
+
+  Option C — Hybrid:
+    Use Option B to find a good lower bound quickly (show to user immediately),
+    then run Option A in the background to verify/improve. If exhaustive search
+    completes, show exact result. If not, show heuristic result with a note.
+
+WEB WORKER ARCHITECTURE:
+  - Run the optimizer in a dedicated Web Worker to keep the UI responsive
+  - Worker sends progress updates (combinations evaluated, best score so far)
+  - Main thread renders progress and intermediate results
+  - User can cancel at any time
+  - Consider SharedArrayBuffer for large card datasets (if cross-origin isolation
+    headers are available)
+
+FORCED CARDS:
+  - If user force-includes M cards, the optimizer only searches over the
+    remaining K-M slots from N-M candidates. This can dramatically reduce the
+    search space (and is a common use case).
+
+================================================================================
+11. EDGE CASES & SPECIAL CARD MECHANICS
+================================================================================
+
+EC-1: CHOOSABLE BONUS CATEGORIES (BoA Customized Cash, US Bank Cash+)
+  - Card allows user to select X categories for elevated cashback
+  - In optimizer: try all permutations of choosable categories and pick the best
+  - In portfolio creator: let user select their chosen categories
+  - Store user's choices in userCardOverrides.choosableCategories
+
+EC-2: ROTATING CATEGORIES (Chase Freedom Flex, Discover It)
+  - Quarterly categories change (e.g., Q1: groceries, Q2: gas, Q3: Amazon, Q4: Walmart)
+  - Default behavior: amortize over 12 months
+    → If 5% groceries for 1 quarter = effective 1.25% groceries annually
+    → But also carries the base rate (typically 1%) for the other 9 months
+  - Advanced behavior: let user select "current quarter" for accurate short-term view
+  - Store rotatingSchedule in the card data: { "Q1": ["groceries"], "Q2": ["gas"], ... }
+
+EC-3: SPEND LIMITS (stored as actual limit + period)
+  - Store limit exactly as issued by the card terms (amount + period)
+    examples: "$500/month", "$1,500/quarter", "$6,000/year"
+  - Convert to monthly at calculation time:
+    yearly ÷ 12, quarterly ÷ 3, monthly unchanged
+  - When spend exceeds limit, overflow goes to base rate (or next-best card in portfolio)
+  - Show the effective blended rate in the UI:
+    e.g., "$500 × 5% + $100 × 1% = $26 → effective 4.33% on $600"
+  - In card display/details, always show both original and monthly-equivalent limits
+
+EC-4: SUBCATEGORY & MERCHANT-SPECIFIC CARDS
+  - Amazon card: 5% on amazon subcategory, NOT all of online-shopping
+  - Whole Foods: some cards treat it as grocery, others as its own thing
+  - Handle via the category taxonomy + merchantCategoryOverrides on cards
+
+EC-5: PAYMENT METHOD BONUSES (Apple Pay, Google Pay)
+  - Some cards give extra % for contactless/mobile pay (US Bank Kroger cards)
+  - These stack on top of category bonuses
+  - Model as paymentMethodBonuses on the card
+  - For optimizer: could add a toggle "I always use Apple Pay when available"
+  - Nice-to-have: per-category payment method preference
+
+EC-6: MERCHANT NETWORK RESTRICTIONS
+  - Costco only accepts Visa
+  - Some stores don't take Amex
+  - Model as a property on specific merchant/category leaf nodes
+  - Optimizer should respect these constraints when assigning categories
+
+EC-7: STATUS-BASED BONUSES (BoA Preferred Rewards, etc.)
+  - Some cards offer boosted rates based on relationship status with the bank
+  - Model as conditionalBonuses array on the card
+  - User toggles which conditions apply to them
+  - Optimizer applies the boosted rates when the condition is active
+
+EC-8: CARD EXCLUSIVITY / PRODUCT FAMILY RULES
+  - E.g., "You can only hold one Sapphire product" (Chase Sapphire Reserve OR Preferred, not both)
+  - Model as exclusivityRules on each card
+  - Optimizer must enforce these constraints during portfolio search
+  - UI shows warning if user manually adds conflicting cards
+
+EC-9: SIGN-ON BONUS FEASIBILITY
+  - If a card requires $4,000 spend in 3 months and user's total monthly spend
+    is $2,000, the user CAN meet it but it's tight
+  - If requirement is $6,000 in 3 months and user spends $1,500/month, they
+    CANNOT meet it naturally
+  - Show a clear warning with the math:
+    "Your monthly spend: $1,500 × 3 months = $4,500 < $6,000 requirement"
+  - Don't auto-exclude these cards from optimizer (user may plan to front-load
+    spend), but flag them
+
+EC-10: ANNUAL FEE VS. VALUE
+  - For each card, calculate net value = annual cashback + perk value − annual fee
+  - If net value is negative, warn the user
+  - In optimizer, annual fee should be factored into the ranking by default
+
+EC-11: DEBIT CARDS
+  - Some debit cards offer cashback (e.g., PayPal debit, Discover debit)
+  - Include them in the database with cardType: "debit"
+  - User setting to include/exclude debit cards from optimization
+
+EC-12: TRAVEL PORTAL SPEND
+  - Some cards give bonus for booking through their travel portal
+  - Model as paymentMethodBonus with method: "travel_portal"
+  - User can set what % of travel spend goes through portals
+  - This is fundamentally a payment method choice, not a category
+
+EC-13: CARDS WITH SUBSCRIPTION/MEMBERSHIP REQUIREMENTS
+  - Robinhood Gold Card requires Robinhood Gold ($5/month or $50/year)
+  - Model this as: annualFee = $50 (the membership cost), with a note
+    explaining it's technically a membership fee not a card fee
+  - If the membership provides other benefits, those go into perks
+
+================================================================================
+12. PERSISTENCE & DATA MANAGEMENT
+================================================================================
+
+LOCAL STORAGE STRATEGY:
+  - Use Zustand's persist middleware with localStorage for:
+      • User's spend profiles
+      • Saved portfolios
+      • Owned cards list
+      • User card overrides
+      • Custom cards
+      • User settings/preferences
+  - Use a versioned schema key (e.g., "cc-optimizer-v1") for future migrations
+  - Total localStorage budget: ~5MB (plenty for card data and user preferences)
+
+DATA ARCHITECTURE:
+  - Built-in card database: static JSON file(s) bundled with the app
+    → cards.json or cards/ directory with per-issuer files
+    → Loaded at app startup, merged with user's custom cards
+  - User's custom cards stored in localStorage
+  - All card data (built-in + custom) merged into a single in-memory store
+
+IMPORT/EXPORT (future, but design for it now):
+  - "Export My Data" → downloads JSON file with all user data
+  - "Import Data" → upload JSON file, merge or replace
+  - "Export Card Database" → download all cards (built-in + custom)
+  - "Import Cards" → upload card JSON (for sharing custom cards)
+  - Design all data structures to be serializable and versioned
+
+================================================================================
+13. UI/UX GUIDELINES
+================================================================================
+
+LAYOUT:
+  - Top navigation bar with tabs: Browse | Portfolio | Optimize | Compare
+  - Each tab is a self-contained page but shares state (spend profiles, card list)
+  - Responsive: works on desktop and tablet, functional on mobile
+  - Dark mode support (Tailwind makes this straightforward)
+
+GENERAL PRINCIPLES:
+  - Use shadcn/ui components consistently (tables, cards, dialogs, inputs, badges)
+  - Loading states for any computation (skeleton loaders, progress bars)
+  - Tooltips on complex fields to explain what they mean
+  - Inline validation on all form inputs
+  - Confirmation dialogs for destructive actions (delete portfolio, etc.)
+  - Toast notifications for save/copy/export actions
+  - Keyboard shortcuts for power users (nice-to-have)
+
+CARD DISPLAY:
+  - Card tiles should have a consistent layout with:
+      • Visual indicator of network (Visa/MC/Amex/Discover colored badge)
+      • Color coding by issuer or user-selected theme
+      • Key stats visible without expanding
+  - Detail view uses a clean layout with sections for: cashback, perks, fees, notes
+
+SPEND PROFILE INPUT:
+  - Clean grid/list of categories with $ inputs
+  - Collapsible subcategories (L2/L3 hidden by default)
+  - Running total always visible
+
+OPTIMIZER RESULTS:
+  - Results as expandable cards, ranked by score
+  - #1 result is highlighted/featured
+  - "Quick compare" checkbox on each result for sending to Comparer
+  - Pagination or "show more" for large result sets
+
+ACCESSIBILITY:
+  - All interactive elements focusable and keyboard-navigable
+  - Proper ARIA labels on custom components
+  - Sufficient color contrast (Tailwind's default palette handles this)
+  - Screen reader-friendly table structures
+
+================================================================================
+14. PROJECT STRUCTURE
+================================================================================
+```
+vibe-cc/
+├── public/
+│   └── data/
+│       └── cards.json              # Built-in card database
+├── src/
+│   ├── main.tsx                    # App entry point
+│   ├── App.tsx                     # Root component with routing/tabs
+│   ├── components/
+│   │   ├── ui/                     # shadcn/ui components (auto-generated)
+│   │   ├── layout/
+│   │   │   ├── Navbar.tsx
+│   │   │   └── PageContainer.tsx
+│   │   ├── cards/
+│   │   │   ├── CardTile.tsx        # Card summary tile
+│   │   │   ├── CardDetail.tsx      # Full card detail view
+│   │   │   ├── CardFilters.tsx     # Filter panel for browsing
+│   │   │   ├── CardList.tsx        # Filterable, sortable card list
+│   │   │   ├── CardForm.tsx        # Add/edit card form
+│   │   │   └── CardStatsBar.tsx    # Aggregate stats for filtered cards
+│   │   ├── spend/
+│   │   │   ├── SpendProfileEditor.tsx  # Reusable spend input
+│   │   │   └── SpendCategoryRow.tsx    # Single category input row
+│   │   ├── portfolio/
+│   │   │   ├── PortfolioBuilder.tsx    # Manual portfolio creation
+│   │   │   ├── PortfolioBreakdown.tsx  # Per-category cashback table
+│   │   │   ├── PortfolioSummary.tsx    # Total value summary card
+│   │   │   └── PortfolioCard.tsx       # Portfolio as a selectable item
+│   │   ├── optimizer/
+│   │   │   ├── OptimizerForm.tsx       # Optimizer inputs & controls
+│   │   │   ├── OptimizerResults.tsx    # Ranked result list
+│   │   │   └── OptimizerProgress.tsx   # Progress indicator
+│   │   └── comparer/
+│   │       ├── ComparerSetup.tsx       # Select portfolios to compare
+│   │       └── ComparerTable.tsx       # Side-by-side comparison
+│   ├── pages/
+│   │   ├── BrowsePage.tsx
+│   │   ├── PortfolioPage.tsx
+│   │   ├── OptimizePage.tsx
+│   │   └── ComparePage.tsx
+│   ├── stores/
+│   │   ├── useCardStore.ts         # Card database state
+│   │   ├── useSpendStore.ts        # Spend profiles state
+│   │   ├── usePortfolioStore.ts    # Saved portfolios state
+│   │   └── useSettingsStore.ts     # User preferences
+│   ├── lib/
+│   │   ├── optimizer/
+│   │   │   ├── types.ts            # Optimizer-specific types
+│   │   │   ├── pruner.ts           # Card pruning/dominance checking
+│   │   │   ├── scorer.ts           # Portfolio scoring (category assignment)
+│   │   │   ├── search.ts           # Portfolio search (combination enumeration)
+│   │   │   └── worker.ts           # Web Worker entry point
+│   │   ├── categories.ts           # Category taxonomy tree
+│   │   ├── calculations.ts         # Cashback calculation utilities
+│   │   ├── cardUtils.ts            # Card manipulation helpers
+│   │   └── defaults.ts             # Default spend values, constants
+│   ├── types/
+│   │   ├── card.ts                 # Card TypeScript interfaces
+│   │   ├── portfolio.ts            # Portfolio types
+│   │   ├── spend.ts                # Spend profile types
+│   │   └── category.ts             # Category taxonomy types
+│   └── data/
+│       └── defaultSpend.ts         # Average American monthly spend data
+├── index.html
+├── tailwind.config.ts
+├── tsconfig.json
+├── vite.config.ts
+├── package.json
+└── README.md
+```
+
+================================================================================
+15. OPEN QUESTIONS & FUTURE WORK
+================================================================================
+
+OPEN QUESTIONS (decisions needed before or during implementation):
+
+Q1: How should the "current quarter" vs "annualized" toggle work for rotating
+    cards? Should it be a global setting or per-card?
+    → Suggestion: Global setting in user preferences, with a visual indicator
+      on affected cards.
+
+Q2: Should the optimizer consider partial use of points (e.g., cash back some,
+    transfer others)? Or treat all rewards as cash equivalent?
+    → Suggestion: Start with cash equivalent using the point valuation multiplier.
+      Users who value points more can increase the multiplier.
+
+Q3: How to handle cards where the bonus structure is complex and doesn't fit
+    the standard model (e.g., "earn 3X on the first $10,000 spent each year,
+    then 1X after")?
+    → Suggestion: Store the original annual structure as spendLimit
+      (`amount: 10000, period: 'year'`) and compute monthly equivalent
+      at runtime (~$833/month) for optimization.
+
+Q4: Should the app track actual spending (expense tracker features) or stay
+    purely as a "what-if" optimizer?
+    → Suggestion: Stay as "what-if" optimizer. Expense tracking is a separate
+      product and adds massive complexity. Users can input their real spending
+      into the spend profile.
+
+Q5: How detailed should the initial card database be? How many cards?
+    → Suggestion: Start with 30-50 of the most popular cashback and rewards
+      cards. Prioritize accuracy over quantity. Include the major issuers:
+      Chase, Amex, Citi, Capital One, Discover, Bank of America, Wells Fargo,
+      US Bank. Include a few notable debit cards (PayPal, Discover).
+
+FUTURE WORK (backlog, do not implement now but keep in mind):
+
+F1: Bulk card import/export (CSV or JSON)
+F2: URL-based portfolio sharing (encode portfolio in URL params)
+F3: "What card should I get next?" feature (given current portfolio, find the
+    single card that would improve it most)
+F4: Historical tracking (save monthly spend data over time, track actual cashback)
+F5: Community card database (let users submit/vote on card data corrections)
+F6: Browser extension to auto-detect card benefits on merchant sites
+F7: Multi-currency support for international users
+F8: Card application tracking (applied, approved, denied, dates)
+F9: Credit score impact considerations
+F10: Integration with card referral links (monetization potential)
+
+================================================================================
+END OF PLAN
+================================================================================
