@@ -1,0 +1,472 @@
+[
+  {
+    "id": "citi-double-cash",
+    "name": "Citi Double Cash",
+    "issuer": "Citi",
+    "network": "Mastercard",
+    "cardType": "credit",
+    "annualFee": 0,
+    "foreignTransactionFeePercent": 3,
+    "isActive": true,
+    "baseCashbackPercent": 2,
+    "categoryBonuses": [],
+    "pointsSystem": {
+      "programName": "ThankYou Points",
+      "defaultPointValueCents": 1,
+      "userPointValueCents": null
+    },
+    "signOnBonus": null,
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [],
+    "paymentMethodBonuses": [],
+    "merchantCategoryOverrides": [],
+    "notes": "Flat 2% card for catch-all spend.",
+    "url": "https://www.citi.com",
+    "lastUpdated": "2026-02-16"
+  },
+  {
+    "id": "amex-blue-cash-preferred",
+    "name": "Amex Blue Cash Preferred",
+    "issuer": "American Express",
+    "network": "Amex",
+    "cardType": "credit",
+    "annualFee": 95,
+    "foreignTransactionFeePercent": 2.7,
+    "isActive": true,
+    "baseCashbackPercent": 1,
+    "categoryBonuses": [
+      {
+        "categoryId": "groceries",
+        "cashbackPercent": 6,
+        "spendLimit": {
+          "amount": 6000,
+          "period": "year"
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": "US supermarkets."
+      },
+      {
+        "categoryId": "streaming",
+        "cashbackPercent": 6,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": "Select streaming subscriptions."
+      },
+      {
+        "categoryId": "gas",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": ""
+      }
+    ],
+    "pointsSystem": {
+      "programName": null,
+      "defaultPointValueCents": 1,
+      "userPointValueCents": null
+    },
+    "signOnBonus": {
+      "bonusAmount": 250,
+      "bonusType": "cash",
+      "spendRequirement": 3000,
+      "timeframeDays": 180,
+      "notes": "Example welcome offer."
+    },
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [],
+    "paymentMethodBonuses": [],
+    "merchantCategoryOverrides": [],
+    "notes": "High grocery/streaming card with annual fee.",
+    "url": "https://www.americanexpress.com",
+    "lastUpdated": "2026-02-16"
+  },
+  {
+    "id": "chase-freedom-flex",
+    "name": "Chase Freedom Flex",
+    "issuer": "Chase",
+    "network": "Mastercard",
+    "cardType": "credit",
+    "annualFee": 0,
+    "foreignTransactionFeePercent": 3,
+    "isActive": true,
+    "baseCashbackPercent": 1,
+    "categoryBonuses": [
+      {
+        "categoryId": "groceries",
+        "cashbackPercent": 5,
+        "spendLimit": {
+          "amount": 1500,
+          "period": "quarter"
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": true,
+        "rotatingSchedule": {
+          "Q1": ["groceries"],
+          "Q2": ["gas"],
+          "Q3": ["amazon"],
+          "Q4": ["walmart-online"]
+        },
+        "notes": "Quarterly rotating categories."
+      },
+      {
+        "categoryId": "dining",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": ""
+      }
+    ],
+    "pointsSystem": {
+      "programName": "Ultimate Rewards",
+      "defaultPointValueCents": 1.25,
+      "userPointValueCents": null
+    },
+    "signOnBonus": {
+      "bonusAmount": 200,
+      "bonusType": "cash",
+      "spendRequirement": 500,
+      "timeframeDays": 90,
+      "notes": ""
+    },
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [],
+    "paymentMethodBonuses": [],
+    "merchantCategoryOverrides": [],
+    "notes": "Popular no-fee rotating card.",
+    "url": "https://www.chase.com",
+    "lastUpdated": "2026-02-16"
+  },
+  {
+    "id": "capital-one-savorone",
+    "name": "Capital One SavorOne",
+    "issuer": "Capital One",
+    "network": "Mastercard",
+    "cardType": "credit",
+    "annualFee": 0,
+    "foreignTransactionFeePercent": 0,
+    "isActive": true,
+    "baseCashbackPercent": 1,
+    "categoryBonuses": [
+      {
+        "categoryId": "dining",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": ""
+      },
+      {
+        "categoryId": "entertainment",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": ""
+      },
+      {
+        "categoryId": "groceries",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": ""
+      }
+    ],
+    "pointsSystem": {
+      "programName": "Capital One Miles",
+      "defaultPointValueCents": 1,
+      "userPointValueCents": null
+    },
+    "signOnBonus": {
+      "bonusAmount": 200,
+      "bonusType": "cash",
+      "spendRequirement": 500,
+      "timeframeDays": 90,
+      "notes": ""
+    },
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [],
+    "paymentMethodBonuses": [],
+    "merchantCategoryOverrides": [],
+    "notes": "Strong dining/grocery no-fee combo card.",
+    "url": "https://www.capitalone.com",
+    "lastUpdated": "2026-02-16"
+  },
+  {
+    "id": "boa-customized-cash",
+    "name": "Bank of America Customized Cash",
+    "issuer": "Bank of America",
+    "network": "Visa",
+    "cardType": "credit",
+    "annualFee": 0,
+    "foreignTransactionFeePercent": 3,
+    "isActive": true,
+    "baseCashbackPercent": 1,
+    "categoryBonuses": [
+      {
+        "categoryId": "online-shopping",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": 2500,
+          "period": "quarter"
+        },
+        "isUserChoosable": true,
+        "maxChoosableSlots": 1,
+        "allowedCategoryIds": ["gas", "online-shopping", "dining", "travel", "drugstores-pharmacy", "home-improvement"],
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": "3% category is user selectable."
+      },
+      {
+        "categoryId": "groceries",
+        "cashbackPercent": 2,
+        "spendLimit": {
+          "amount": 2500,
+          "period": "quarter"
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": "Combined with wholesale clubs."
+      }
+    ],
+    "pointsSystem": {
+      "programName": null,
+      "defaultPointValueCents": 1,
+      "userPointValueCents": null
+    },
+    "signOnBonus": null,
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [
+      {
+        "conditionName": "Preferred Rewards Platinum Honors",
+        "conditionDescription": "75% rewards boost",
+        "baseCashbackBoost": 0.75,
+        "categoryBonusMultiplier": 1.75,
+        "isActive": false
+      }
+    ],
+    "paymentMethodBonuses": [],
+    "merchantCategoryOverrides": [],
+    "notes": "Good chooser card with Preferred Rewards upside.",
+    "url": "https://www.bankofamerica.com",
+    "lastUpdated": "2026-02-16"
+  },
+  {
+    "id": "us-bank-cash-plus",
+    "name": "US Bank Cash+",
+    "issuer": "US Bank",
+    "network": "Visa",
+    "cardType": "credit",
+    "annualFee": 0,
+    "foreignTransactionFeePercent": 3,
+    "isActive": true,
+    "baseCashbackPercent": 1,
+    "categoryBonuses": [
+      {
+        "categoryId": "bills-utilities",
+        "cashbackPercent": 5,
+        "spendLimit": {
+          "amount": 2000,
+          "period": "quarter"
+        },
+        "isUserChoosable": true,
+        "maxChoosableSlots": 2,
+        "allowedCategoryIds": [
+          "internet",
+          "streaming",
+          "electric",
+          "water",
+          "phone-bill",
+          "public-transit",
+          "rideshare",
+          "parking",
+          "tolls",
+          "clothing",
+          "electronics",
+          "car-rental",
+          "gym-fitness",
+          "movies-theater",
+          "fast-food",
+          "furniture"
+        ],
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": "Choose two 5% categories each quarter."
+      }
+    ],
+    "pointsSystem": {
+      "programName": null,
+      "defaultPointValueCents": 1,
+      "userPointValueCents": null
+    },
+    "signOnBonus": {
+      "bonusAmount": 200,
+      "bonusType": "cash",
+      "spendRequirement": 1000,
+      "timeframeDays": 120,
+      "notes": ""
+    },
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [],
+    "paymentMethodBonuses": [],
+    "merchantCategoryOverrides": [],
+    "notes": "High utility card.",
+    "url": "https://www.usbank.com",
+    "lastUpdated": "2026-02-16"
+  },
+  {
+    "id": "wells-fargo-autograph",
+    "name": "Wells Fargo Autograph",
+    "issuer": "Wells Fargo",
+    "network": "Visa",
+    "cardType": "credit",
+    "annualFee": 0,
+    "foreignTransactionFeePercent": 0,
+    "isActive": true,
+    "baseCashbackPercent": 1,
+    "categoryBonuses": [
+      {
+        "categoryId": "travel",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": ""
+      },
+      {
+        "categoryId": "dining",
+        "cashbackPercent": 3,
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "isUserChoosable": false,
+        "maxChoosableSlots": null,
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": ""
+      }
+    ],
+    "pointsSystem": {
+      "programName": "Wells Fargo Rewards",
+      "defaultPointValueCents": 1,
+      "userPointValueCents": null
+    },
+    "signOnBonus": null,
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [],
+    "paymentMethodBonuses": [],
+    "merchantCategoryOverrides": [],
+    "notes": "Good travel no-FTF starter card.",
+    "url": "https://www.wellsfargo.com",
+    "lastUpdated": "2026-02-16"
+  },
+  {
+    "id": "paypal-debit",
+    "name": "PayPal Debit Card",
+    "issuer": "PayPal",
+    "network": "Mastercard",
+    "cardType": "debit",
+    "annualFee": 0,
+    "foreignTransactionFeePercent": 0,
+    "isActive": true,
+    "baseCashbackPercent": 0,
+    "categoryBonuses": [
+      {
+        "categoryId": "groceries",
+        "cashbackPercent": 5,
+        "spendLimit": {
+          "amount": 1000,
+          "period": "month"
+        },
+        "isUserChoosable": true,
+        "maxChoosableSlots": 1,
+        "allowedCategoryIds": ["groceries", "gas", "dining", "drugstores-pharmacy", "clothing"],
+        "isRotating": false,
+        "rotatingSchedule": null,
+        "notes": "Monthly selected category."
+      }
+    ],
+    "pointsSystem": {
+      "programName": null,
+      "defaultPointValueCents": 1,
+      "userPointValueCents": null
+    },
+    "signOnBonus": null,
+    "perks": [],
+    "exclusivityRules": [],
+    "conditionalBonuses": [],
+    "paymentMethodBonuses": [
+      {
+        "method": "contactless",
+        "bonusCashbackPercent": 1,
+        "applicableCategories": [],
+        "spendLimit": {
+          "amount": null,
+          "period": null
+        },
+        "notes": "Promotional contactless boost."
+      }
+    ],
+    "merchantCategoryOverrides": [
+      {
+        "merchantId": "costco",
+        "overrideCategoryId": "groceries"
+      }
+    ],
+    "notes": "Included as a cashback debit example.",
+    "url": "https://www.paypal.com",
+    "lastUpdated": "2026-02-16"
+  }
+]
